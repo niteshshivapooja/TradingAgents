@@ -10,11 +10,22 @@ This guide will walk you through deploying the TradingAgents Telegram Bot on Goo
 ## 1. Authenticate and Configure GCP
 
 **If using GCP Cloud Shell:**
-You are already authenticated! Just ensure your project is set correctly and clone the repository:
+You are already authenticated! Just ensure your project is set correctly. 
+
+Before cloning, it is highly recommended to **Fork** the repository on GitHub so you can easily make custom changes and save them.
+1. Go to [https://github.com/TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) and click **Fork** (leave "Copy the main branch only" checked).
+2. In Cloud Shell, clone your new fork (replace `YOUR_USERNAME` with your GitHub username):
 ```bash
 gcloud config set project YOUR_PROJECT_ID
-git clone https://github.com/TauricResearch/TradingAgents.git
+git clone https://github.com/YOUR_USERNAME/TradingAgents.git
 cd TradingAgents
+```
+
+3. **(Optional) Syncing Custom Changes:** If you modify the code and want to save those changes back to your GitHub fork, run:
+```bash
+git add .
+git commit -m "Your commit message"
+git push origin main
 ```
 
 **If using your local machine:**
@@ -53,24 +64,72 @@ Push the image to Artifact Registry:
 docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/tradingagents-repo/telegram-bot:latest
 ```
 
-## 5. Deploy to Cloud Run (Initial Deployment)
-Deploy the container to Cloud Run. We will set the `WEBHOOK_URL` in the next step once we have the generated URL.
+## 5. Get a Telegram Bot Token
+Before deploying, you need a token to authenticate your bot with Telegram:
+1. Open Telegram and search for **@BotFather**.
+2. Send the command `/newbot` to BotFather.
+3. Follow the prompts to choose a name and username for your bot.
+4. BotFather will give you a **token** (e.g., `123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ`). Save this token; you will need it for the deployment step.
+
+## 6. Set up Google Docs Integration
+The bot uploads its trading reports to Google Docs. To allow this, you need a Google Service Account.
+
+1. **Enable the required APIs:**
+```bash
+gcloud services enable docs.googleapis.com drive.googleapis.com secretmanager.googleapis.com
+```
+
+2. **Create a Service Account:**
+```bash
+gcloud iam service-accounts create gdocs-uploader \
+    --description="Service account for uploading to Google Docs" \
+    --display-name="GDocs Uploader"
+```
+
+3. **Generate a JSON key file:**
+```bash
+gcloud iam service-accounts keys create credentials.json \
+    --iam-account=gdocs-uploader@YOUR_PROJECT_ID.iam.gserviceaccount.com
+```
+
+4. **Store the key securely in Google Secret Manager:**
+```bash
+gcloud secrets create gdocs-credentials --data-file=credentials.json
+```
+
+5. **Grant Cloud Run access to the secret:**
+```bash
+# Get your project number
+PROJECT_NUMBER=$(gcloud projects describe YOUR_PROJECT_ID --format="value(projectNumber)")
+
+# Grant the default compute service account access to the secret
+gcloud secrets add-iam-policy-binding gdocs-credentials \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor"
+```
+
+## 7. Deploy to Cloud Run (Initial Deployment)
+Deploy the container to Cloud Run and mount the credentials secret. We will set the `WEBHOOK_URL` in the next step once we have the generated URL.
 ```bash
 gcloud run deploy tradingagents-bot \
     --image us-central1-docker.pkg.dev/YOUR_PROJECT_ID/tradingagents-repo/telegram-bot:latest \
     --region us-central1 \
     --allow-unauthenticated \
     --set-env-vars TELEGRAM_BOT_TOKEN=your_telegram_token_here \
-    --set-env-vars OPENAI_API_KEY=your_openai_key_here \
+    --set-env-vars LLM_PROVIDER=google \
+    --set-env-vars GOOGLE_API_KEY=your_google_api_key_here \
+    --set-env-vars DEEP_THINK_LLM=gemini-3.1-pro \
+    --set-env-vars QUICK_THINK_LLM=gemini-3.1-flash \
+    --set-secrets="/secrets/credentials.json=gdocs-credentials:latest" \
+    --set-env-vars GOOGLE_APPLICATION_CREDENTIALS=/secrets/credentials.json \
     --memory 1024Mi \
     --cpu 1 \
     --max-instances 1
 ```
-*Note: If you are using Google Docs integration, you can pass the credentials JSON content as a base64 string or use Google Secret Manager, but for simplicity, you can mount it or pass it as an env var.*
 
 After deployment, `gcloud` will output a **Service URL** (e.g., `https://tradingagents-bot-xyz.a.run.app`).
 
-## 6. Update the Webhook URL
+## 8. Update the Webhook URL
 Now that you have the Service URL, update the Cloud Run service to include the `WEBHOOK_URL` environment variable. This tells the bot to register itself with Telegram using this URL.
 ```bash
 gcloud run services update tradingagents-bot \
@@ -78,7 +137,7 @@ gcloud run services update tradingagents-bot \
     --update-env-vars WEBHOOK_URL=https://tradingagents-bot-xyz.a.run.app
 ```
 
-## 7. Test the Bot
+## 9. Test the Bot
 Send a message to your bot on Telegram:
 ```
 /start

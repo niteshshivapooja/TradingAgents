@@ -29,7 +29,17 @@ async def analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Starting analysis for {ticker} on {date}. This may take a few minutes...")
     
     try:
-        ta = TradingAgentsGraph(debug=False, config=DEFAULT_CONFIG.copy())
+        config = DEFAULT_CONFIG.copy()
+        
+        # Override with environment variables if present
+        if os.environ.get("LLM_PROVIDER"):
+            config["llm_provider"] = os.environ.get("LLM_PROVIDER")
+        if os.environ.get("DEEP_THINK_LLM"):
+            config["deep_think_llm"] = os.environ.get("DEEP_THINK_LLM")
+        if os.environ.get("QUICK_THINK_LLM"):
+            config["quick_think_llm"] = os.environ.get("QUICK_THINK_LLM")
+            
+        ta = TradingAgentsGraph(debug=False, config=config)
         _, decision = ta.propagate(ticker, date)
         
         report_content = f"Trading Report for {ticker} on {date}\n\nDecision:\n{decision}"
