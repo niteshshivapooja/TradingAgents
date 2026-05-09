@@ -17,7 +17,7 @@ Before cloning, it is highly recommended to **Fork** the repository on GitHub so
 2. In Cloud Shell, clone your new fork (replace `YOUR_USERNAME` with your GitHub username):
 ```bash
 gcloud config set project YOUR_PROJECT_ID
-git clone https://github.com/YOUR_USERNAME/TradingAgents.git
+git clone https://github.com/niteshshivapooja/TradingAgents.git
 cd TradingAgents
 ```
 
@@ -32,7 +32,7 @@ git push origin main
 Open your terminal and run:
 ```bash
 gcloud auth login
-gcloud config set project YOUR_PROJECT_ID
+gcloud config set project triple-method-495107-g6
 ```
 
 ## 2. Enable Required APIs
@@ -61,7 +61,7 @@ docker build -f Dockerfile.bot -t us-central1-docker.pkg.dev/triple-method-49510
 ```
 Push the image to Artifact Registry:
 ```bash
-docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/tradingagents-repo/telegram-bot:latest
+docker push us-central1-docker.pkg.dev/triple-method-495107-g6/tradingagents-repo/telegram-bot:latest
 ```
 
 ## 5. Get a Telegram Bot Token
