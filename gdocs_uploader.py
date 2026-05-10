@@ -21,31 +21,14 @@ def upload_to_gdocs(title, content):
     if not doc_id:
         raise ValueError("DOCUMENT_ID environment variable is missing!")
         
-    # 1. Create a new Tab
-    create_tab_req = {
-        'createTab': {
-            'tabProperties': {
-                'title': title
-            }
-        }
-    }
+    formatted_content = f"{title}\n{'='*len(title)}\n{content}\n\n" + ("-" * 40) + "\n\n"
     
-    response = docs_service.documents().batchUpdate(
-        documentId=doc_id, 
-        body={'requests': [create_tab_req]}
-    ).execute()
-    
-    # Extract the new Tab ID
-    new_tab_id = response['replies'][0]['createTab']['tabId']
-    
-    # 2. Insert content into the new Tab
     insert_text_req = {
         'insertText': {
             'location': {
-                'index': 1,
-                'tabId': new_tab_id
+                'index': 1
             },
-            'text': content
+            'text': formatted_content
         }
     }
     
@@ -54,4 +37,4 @@ def upload_to_gdocs(title, content):
         body={'requests': [insert_text_req]}
     ).execute()
     
-    return f"https://docs.google.com/document/d/{doc_id}/edit#tab={new_tab_id}"
+    return f"https://docs.google.com/document/d/{doc_id}/edit"
