@@ -62,6 +62,13 @@ gcloud secrets add-iam-policy-binding gdocs-credentials \
     --role="roles/secretmanager.secretAccessor"
 ```
 
+### 6. Create the Master Google Doc
+Since service accounts on free tier GCP projects have a 0 GB storage limit, the bot cannot create its own documents. It must append reports as **Tabs** to a document *you* own.
+1. Go to Google Docs and create a new blank document (e.g., "Trading Reports").
+2. Click **Share** in the top right.
+3. Share it with your service account email (e.g., `gdocs-uploader@YOUR_PROJECT_ID.iam.gserviceaccount.com`) and grant it **Editor** access.
+4. Look at the URL of the Google Doc. It will look like `https://docs.google.com/document/d/YOUR_DOCUMENT_ID/edit`. Copy that `YOUR_DOCUMENT_ID` part, you will need it for deployment.
+
 ---
 
 ## Deploy / Update Workflow
@@ -109,6 +116,7 @@ gcloud run deploy tradingagents-bot \
     --set-env-vars GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY \
     --set-env-vars DEEP_THINK_LLM=gemini-2.5-pro \
     --set-env-vars QUICK_THINK_LLM=gemini-2.5-flash \
+    --set-env-vars DOCUMENT_ID=YOUR_DOCUMENT_ID \
     --set-secrets="/secrets/credentials.json=gdocs-credentials:latest" \
     --set-env-vars GOOGLE_APPLICATION_CREDENTIALS=/secrets/credentials.json \
     --set-env-vars WEBHOOK_URL=YOUR_CLOUD_RUN_SERVICE_URL \

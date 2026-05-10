@@ -164,6 +164,10 @@ if __name__ == '__main__':
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set.")
+        
+    doc_id = os.environ.get("DOCUMENT_ID")
+    if not doc_id:
+        raise ValueError("DOCUMENT_ID environment variable not set. Please create a Google Doc, share it with your service account, and set this variable.")
 
     app = ApplicationBuilder().token(token).build()
     app.add_handler(CommandHandler("start", start))
