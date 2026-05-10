@@ -103,6 +103,7 @@ gcloud run deploy tradingagents-bot \
     --image us-central1-docker.pkg.dev/YOUR_PROJECT_ID/tradingagents-repo/telegram-bot:v3 \
     --region us-central1 \
     --allow-unauthenticated \
+    --no-cpu-throttling \
     --set-env-vars TELEGRAM_BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN \
     --set-env-vars LLM_PROVIDER=google \
     --set-env-vars GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY \
@@ -157,6 +158,9 @@ Open Telegram and send your bot:
 
 ### ❌ Container fails to start / port 8080 timeout on first deploy
 **Fix:** Always include `--set-env-vars WEBHOOK_URL=...` in the deploy command. Without it, the bot falls back to polling mode (no web server), and Cloud Run kills it.
+
+### ❌ Bot starts analyzing but silently stops (Deep Think model never called, no errors)
+**Fix:** This is caused by Cloud Run's default "CPU Throttling". Because the bot responds to the Telegram webhook immediately and processes the heavy LangGraph tasks in the background, Cloud Run thinks the request is done and throttles the CPU to near zero, freezing your bot mid-analysis. Ensure you have the `--no-cpu-throttling` flag in your `gcloud run deploy` command to allow background execution.
 
 ### ❌ `404 NOT_FOUND: models/gemini-3.1-flash is not found`
 **Fix:** Use the correct model names: `gemini-2.5-pro` and `gemini-2.5-flash`. Update with:

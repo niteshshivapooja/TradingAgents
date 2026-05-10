@@ -106,8 +106,9 @@ async def analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         while not stream_done.is_set() or not chunk_queue.empty():
             try:
-                chunk = chunk_queue.get(timeout=0.5)
+                chunk = chunk_queue.get_nowait()
             except queue.Empty:
+                await asyncio.sleep(0.5)
                 continue
 
             if isinstance(chunk, Exception):
