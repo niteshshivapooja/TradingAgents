@@ -114,14 +114,28 @@ async def analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if isinstance(chunk, Exception):
                 raise chunk
 
-            # Each chunk is keyed by the node name that just finished
-            for node_name, node_state in chunk.items():
-                if isinstance(node_state, dict):
-                    accumulated_state.update(node_state)
-                    
-                if node_name not in seen_nodes and node_name in NODE_STATUS_MESSAGES:
-                    seen_nodes.add(node_name)
-                    await update_status(NODE_STATUS_MESSAGES[node_name])
+            # LangGraph stream_mode="values" returns the full AgentState dict
+            if "company_of_interest" in chunk and "messages" in chunk:
+                accumulated_state.update(chunk)
+                # Try to deduce progress for status messages
+                if chunk.get("market_report") and "Market Analyst" not in seen_nodes:
+                    seen_nodes.add("Market Analyst")
+                    await update_status(NODE_STATUS_MESSAGES["Market Analyst"])
+                if chunk.get("sentiment_report") and "Social Analyst" not in seen_nodes:
+                    seen_nodes.add("Social Analyst")
+                    await update_status(NODE_STATUS_MESSAGES["Social Analyst"])
+                if chunk.get("final_trade_decision") and "Portfolio Manager" not in seen_nodes:
+                    seen_nodes.add("Portfolio Manager")
+                    await update_status(NODE_STATUS_MESSAGES["Portfolio Manager"])
+            else:
+                # LangGraph stream_mode="updates" returns {node_name: state_update}
+                for node_name, node_state in chunk.items():
+                    if isinstance(node_state, dict):
+                        accumulated_state.update(node_state)
+                        
+                    if node_name not in seen_nodes and node_name in NODE_STATUS_MESSAGES:
+                        seen_nodes.add(node_name)
+                        await update_status(NODE_STATUS_MESSAGES[node_name])
 
         thread.join()
 
@@ -136,7 +150,9 @@ async def analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Fallback: run a full invoke to guarantee we have the complete state
             logging.warning("Could not extract decision from stream; falling back to invoke.")
             await update_status("📋 Finalising decision…")
-            _, decision = ta.propagate(ticker, date)
+            final_state, decision = ta.propagate(ticker, date)
+            if final_state:
+                accumulated_state.update(final_state)
 
         # ------------------------------------------------------------------ #
         # Upload report to Google Docs                                         #
