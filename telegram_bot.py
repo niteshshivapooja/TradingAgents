@@ -102,7 +102,7 @@ async def analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
         thread.start()
 
         seen_nodes: set = set()
-        last_chunk = None
+        accumulated_state: dict = {}
 
         while not stream_done.is_set() or not chunk_queue.empty():
             try:
@@ -114,10 +114,11 @@ async def analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if isinstance(chunk, Exception):
                 raise chunk
 
-            last_chunk = chunk
-
             # Each chunk is keyed by the node name that just finished
-            for node_name in chunk.keys():
+            for node_name, node_state in chunk.items():
+                if isinstance(node_state, dict):
+                    accumulated_state.update(node_state)
+                    
                 if node_name not in seen_nodes and node_name in NODE_STATUS_MESSAGES:
                     seen_nodes.add(node_name)
                     await update_status(NODE_STATUS_MESSAGES[node_name])
@@ -125,16 +126,11 @@ async def analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
         thread.join()
 
         # ------------------------------------------------------------------ #
-        # Extract the final trade decision from the last streamed chunk.       #
-        # LangGraph stream chunks are keyed {node_name: {state_updates}}.     #
+        # Extract the final trade decision from the accumulated state.         #
         # ------------------------------------------------------------------ #
         decision = None
-        if last_chunk:
-            for node_state in last_chunk.values():
-                if isinstance(node_state, dict):
-                    if "final_trade_decision" in node_state:
-                        decision = ta.process_signal(node_state["final_trade_decision"])
-                        break
+        if "final_trade_decision" in accumulated_state:
+            decision = ta.process_signal(accumulated_state["final_trade_decision"])
 
         if decision is None:
             # Fallback: run a full invoke to guarantee we have the complete state
@@ -147,8 +143,20 @@ async def analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ------------------------------------------------------------------ #
         await update_status("✅ Analysis complete! Uploading report to Google Docs…")
 
-        report_content = f"Trading Report for {ticker} on {date}\n\nDecision:\n{decision}"
-        doc_url = upload_to_gdocs(f"Trading Report: {ticker} - {date}", report_content)
+        # Build detailed report content as sections
+        sections = []
+        if "market_report" in accumulated_state:
+            sections.append(("📈 Market Analyst Report", accumulated_state['market_report']))
+        if "sentiment_report" in accumulated_state:
+            sections.append(("💬 Sentiment Analyst Report", accumulated_state['sentiment_report']))
+        if "news_report" in accumulated_state:
+            sections.append(("📰 News Analyst Report", accumulated_state['news_report']))
+        if "fundamentals_report" in accumulated_state:
+            sections.append(("🏦 Fundamentals Analyst Report", accumulated_state['fundamentals_report']))
+
+        sections.append(("🎯 Final Decision", str(decision)))
+
+        doc_url = upload_to_gdocs(f"Trading Report: {ticker} - {date}", sections=sections)
 
         await update_status(
             f"✅ *Analysis complete for {ticker}!*\n\n"

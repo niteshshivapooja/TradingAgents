@@ -14,27 +14,69 @@ def get_gdocs_service():
     docs_service = build('docs', 'v1', credentials=creds)
     return drive_service, docs_service
 
-def upload_to_gdocs(title, content):
+def upload_to_gdocs(title, content=None, sections=None):
     drive_service, docs_service = get_gdocs_service()
     
     doc_id = os.environ.get("DOCUMENT_ID")
     if not doc_id:
         raise ValueError("DOCUMENT_ID environment variable is missing!")
         
-    formatted_content = f"{title}\n{'='*len(title)}\n{content}\n\n" + ("-" * 40) + "\n\n"
+    full_text = ""
+    header_ranges = []
     
-    insert_text_req = {
-        'insertText': {
-            'location': {
-                'index': 1
-            },
-            'text': formatted_content
+    # We insert at index 1
+    current_idx = 1
+    
+    # Title
+    title_text = f"{title}\n\n"
+    full_text += title_text
+    header_ranges.append((current_idx, current_idx + len(title_text), 'HEADING_1'))
+    current_idx += len(title_text)
+    
+    if sections:
+        for header, body in sections:
+            header_text = f"{header}\n"
+            full_text += header_text
+            header_ranges.append((current_idx, current_idx + len(header_text), 'HEADING_2'))
+            current_idx += len(header_text)
+            
+            body_text = f"{body}\n\n"
+            full_text += body_text
+            current_idx += len(body_text)
+    elif content:
+        full_text += f"{content}\n\n"
+        current_idx += len(f"{content}\n\n")
+        
+    separator = ("-" * 40) + "\n\n"
+    full_text += separator
+    current_idx += len(separator)
+    
+    requests = [
+        {
+            'insertText': {
+                'location': {'index': 1},
+                'text': full_text
+            }
         }
-    }
+    ]
+    
+    for start, end, style in header_ranges:
+        requests.append({
+            'updateParagraphStyle': {
+                'range': {
+                    'startIndex': start,
+                    'endIndex': end
+                },
+                'paragraphStyle': {
+                    'namedStyleType': style
+                },
+                'fields': 'namedStyleType'
+            }
+        })
     
     docs_service.documents().batchUpdate(
         documentId=doc_id, 
-        body={'requests': [insert_text_req]}
+        body={'requests': requests}
     ).execute()
     
     return f"https://docs.google.com/document/d/{doc_id}/edit"
